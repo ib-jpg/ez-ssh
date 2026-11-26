@@ -1,0 +1,18 @@
+Package: ez-ssh
+Version: 1.0.0
+Architecture: i386
+Maintainer: Ibrahim Irsyad <ibrairsyd0406@gmail.com>
+Installed-Size: 11717
+Recommends: openssh-client
+Filename: pool/main/ez-ssh_1.0.0_i386.deb
+Size: 4875816
+MD5sum: d259a1bfa674e1345ada628c426d3938
+SHA1: c609a70cf0bd59b8f1663c1ee499b8276badd1a2
+SHA256: 35f13847d8a5563c729ff7b6f3b9f9e96e52dc238548198e9e922ebd06d9fc10
+Section: net
+Priority: optional
+Homepage: https://github.com/ib-jpg/ez-ssh
+Description: Local, zero-cloud SSH & SFTP Manager TUI.
+ Manages hosts, encrypted keychain credentials, SSH keypairs,
+ port forwarding tunnels, snippets, known_hosts, logs, and SFTP.
+

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ez-ssh APT Repository</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1rem; line-height: 1.6; }
+    pre { background: #181825; color: #cdd6f4; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+    a { color: #1e66f5; }
+  </style>
+</head>
+<body>
+  <h1>ez-ssh Ubuntu / Debian APT Repository</h1>
+  <p>Install and keep <code>ez-ssh</code> up to date via <code>apt</code>:</p>
+  <pre>curl -fsSL https://ib-jpg.github.io/ez-ssh/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ez-ssh-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/ez-ssh-archive-keyring.gpg] https://ib-jpg.github.io/ez-ssh/apt stable main" | sudo tee /etc/apt/sources.list.d/ez-ssh.list
+sudo apt update &amp;&amp; sudo apt install ez-ssh</pre>
+  <p>Source code &amp; multi-distro packages: <a href="https://github.com/ib-jpg/ez-ssh">github.com/ib-jpg/ez-ssh</a></p>
+</body>
+</html>

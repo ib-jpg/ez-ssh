@@ -1,0 +1,18 @@
+Package: ez-ssh
+Version: 1.0.0
+Architecture: amd64
+Maintainer: Ibrahim Irsyad <ibrairsyd0406@gmail.com>
+Installed-Size: 12197
+Recommends: openssh-client
+Filename: pool/main/ez-ssh_1.0.0_amd64.deb
+Size: 5063734
+MD5sum: 4ed137b1090a9a0e8f2e1916a18b9291
+SHA1: 3c18d3a946a3a048e612f003c1938f50073ccee0
+SHA256: 07dbee53fb594e783556f15fd79517716e60ee4cb9fbf4ed937f513af80a62fb
+Section: net
+Priority: optional
+Homepage: https://github.com/ib-jpg/ez-ssh
+Description: Local, zero-cloud SSH & SFTP Manager TUI.
+ Manages hosts, encrypted keychain credentials, SSH keypairs,
+ port forwarding tunnels, snippets, known_hosts, logs, and SFTP.
+
