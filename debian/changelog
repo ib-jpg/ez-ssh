@@ -1,3 +1,10 @@
+ez-ssh (1.0.1-1) unstable; urgency=medium
+
+  * Treat SSH_MSG_USERAUTH_FAILURE (type 51) as authentication failure.
+  * Harden APT repository release signing and verification.
+
+ -- Ibrahim Irsyad <ibrairsyd0406@gmail.com>  Thu, 26 Nov 2026 16:05:00 +0700
+
 ez-ssh (1.0.0-1) unstable; urgency=medium
 
   * Initial release (v1.0.0).

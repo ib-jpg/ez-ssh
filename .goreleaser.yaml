@@ -91,3 +91,4 @@ release:
   github:
     owner: ib-jpg
     name: ez-ssh
+  replace_existing_artifacts: true

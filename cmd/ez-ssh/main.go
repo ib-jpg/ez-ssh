@@ -13,7 +13,7 @@ import (
 	"github.com/ib-jpg/ez-ssh/internal/ui"
 )
 
-var version = "1.0.0"
+var version = "1.0.1"
 
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--internal-askpass" {

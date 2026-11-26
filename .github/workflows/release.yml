@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -44,6 +45,7 @@ jobs:
 
   publish-apt:
     needs: release
+    if: always() && (needs.release.result == 'success' || (github.event_name == 'workflow_dispatch' && needs.release.result == 'skipped'))
     runs-on: ubuntu-latest
     steps:
       - name: Check GPG signing secret
@@ -64,12 +66,35 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils gnupg
 
-      - name: Download .deb packages
-        if: steps.check_gpg.outputs.has_gpg == 'true'
+      - name: Download .deb packages from release artifact
+        if: steps.check_gpg.outputs.has_gpg == 'true' && github.event_name != 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
           name: deb-packages
           path: /tmp/debs
+
+      - name: Download .deb packages from latest GitHub Release
+        if: steps.check_gpg.outputs.has_gpg == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/debs
+          curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
+            -o /tmp/latest-release.json
+          python3 - << 'PY'
+          import json, os, urllib.request
+          with open("/tmp/latest-release.json") as f:
+              rel = json.load(f)
+          debs = [a for a in rel.get("assets", []) if a["name"].endswith(".deb")]
+          if not debs:
+              raise SystemExit("::error::No .deb assets found in latest GitHub Release.")
+          for a in debs:
+              dst = os.path.join("/tmp/debs", a["name"])
+              print("Downloading", a["name"], "from", a["browser_download_url"])
+              urllib.request.urlretrieve(a["browser_download_url"], dst)
+          PY
 
       - name: Checkout repository for gh-pages
         if: steps.check_gpg.outputs.has_gpg == 'true'
@@ -89,15 +114,36 @@ jobs:
           chmod 700 "$GNUPGHOME"
           trap 'rm -rf "$GNUPGHOME"' EXIT
 
-          if [ -n "${GPG_PASSPHRASE:-}" ]; then
-            printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --pinentry-mode loopback --passphrase-fd 3 --import 3<<<"$GPG_PASSPHRASE"
-          else
-            printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          printf 'allow-loopback-pinentry\n' > "$GNUPGHOME/gpg-agent.conf"
+          printf 'batch\nyes\npinentry-mode loopback\n' > "$GNUPGHOME/gpg.conf"
+
+          KEY_FILE="$GNUPGHOME/private.key"
+          printf '%s\n' "$GPG_PRIVATE_KEY" | tr -d '\r' > "$KEY_FILE"
+          if ! grep -q "BEGIN PGP PRIVATE KEY BLOCK" "$KEY_FILE"; then
+            if tr -d '\r\n ' < "$KEY_FILE" | base64 -d > "$KEY_FILE.decoded" 2>/dev/null; then
+              mv "$KEY_FILE.decoded" "$KEY_FILE"
+            fi
+          fi
+          if ! grep -q "BEGIN PGP PRIVATE KEY BLOCK" "$KEY_FILE"; then
+            echo "::error::GPG_PRIVATE_KEY secret does not contain a valid PGP private key block (export with: gpg --armor --export-secret-keys <KEY_ID>)."
+            exit 1
           fi
 
-          KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          PASS_ARGS=()
+          if [ -n "${GPG_PASSPHRASE:-}" ]; then
+            PASS_FILE="$GNUPGHOME/passphrase"
+            (umask 077 && printf '%s' "$GPG_PASSPHRASE" > "$PASS_FILE")
+            PASS_ARGS=(--passphrase-file "$PASS_FILE")
+          fi
+
+          if ! gpg ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} --import "$KEY_FILE"; then
+            echo "::error::Failed to import GPG_PRIVATE_KEY. Verify the armored secret key and GPG_PASSPHRASE secret."
+            exit 1
+          fi
+
+          KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/{f=1} f && /^fpr:/{print $10; exit}')"
           if [ -z "$KEY_ID" ]; then
-            echo "Failed to extract GPG secret key ID" >&2
+            echo "::error::No GPG secret key fingerprint found after import. Ensure GPG_PRIVATE_KEY contains a secret key (not a public key)."
             exit 1
           fi
 
@@ -147,6 +193,7 @@ jobs:
           done
 
           pushd dists/stable >/dev/null
+          rm -f Release Release.gpg InRelease
           apt-ftparchive \
             -o APT::FTPArchive::Release::Origin="ez-ssh" \
             -o APT::FTPArchive::Release::Label="ez-ssh" \
@@ -154,26 +201,30 @@ jobs:
             -o APT::FTPArchive::Release::Codename="stable" \
             -o "APT::FTPArchive::Release::Architectures=amd64 arm64 i386" \
             -o APT::FTPArchive::Release::Components="main" \
-            release . > Release
+            release . > /tmp/Release
+          mv /tmp/Release Release
 
-          rm -f Release.gpg InRelease
-          if [ -n "${GPG_PASSPHRASE:-}" ]; then
-            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --local-user "$KEY_ID" --detach-sign --armor -o Release.gpg Release 3<<<"$GPG_PASSPHRASE"
-            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --local-user "$KEY_ID" --clearsign -o InRelease Release 3<<<"$GPG_PASSPHRASE"
-          else
-            gpg --batch --yes --local-user "$KEY_ID" --detach-sign --armor -o Release.gpg Release
-            gpg --batch --yes --local-user "$KEY_ID" --clearsign -o InRelease Release
+          if ! gpg ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} --digest-algo SHA256 --local-user "$KEY_ID" --detach-sign --armor -o Release.gpg Release || \
+             ! gpg ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} --digest-algo SHA256 --local-user "$KEY_ID" --clearsign -o InRelease Release; then
+            echo "::error::Failed to sign APT Release metadata with GPG key $KEY_ID. If your GPG key is passphrase-protected, ensure GPG_PASSPHRASE secret matches it."
+            exit 1
           fi
           popd >/dev/null
 
           gpg --armor --export "$KEY_ID" > gpg.key
+          gpg --dearmor < gpg.key > /tmp/ez-ssh-verify.gpg
+          gpgv --keyring /tmp/ez-ssh-verify.gpg dists/stable/InRelease
+          gpgv --keyring /tmp/ez-ssh-verify.gpg dists/stable/Release.gpg dists/stable/Release
+          rm -f /tmp/ez-ssh-verify.gpg
           popd >/dev/null
 
           git add .nojekyll index.html apt
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "apt: publish release ${GITHUB_REF_NAME:-manual}"
-            git push origin gh-pages
+            if ! git push origin gh-pages; then
+              echo "::error::Failed to push gh-pages branch. Ensure Settings -> Actions -> General -> Workflow permissions is set to 'Read and write permissions'."
+              exit 1
+            fi
           else
             echo "APT repository already up to date."
           fi
-  
