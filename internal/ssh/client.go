@@ -130,7 +130,8 @@ func ClassifySSHError(err error) (isAuth bool, summary string) {
 		strings.Contains(lower, "no supported methods remain") ||
 		strings.Contains(lower, "passphrase") ||
 		strings.Contains(lower, "no ssh authentication method") ||
-		strings.Contains(lower, "permission denied") {
+		strings.Contains(lower, "permission denied") ||
+		strings.Contains(lower, "unexpected message type 51") {
 		return true, "Incorrect password or rejected SSH credential"
 	}
 	return false, msg
