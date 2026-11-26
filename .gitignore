@@ -1,0 +1,26 @@
+# Go build / vendor / coverage artifacts
+vendor/
+dist/
+build/
+coverage.out
+*.out
+/ez-ssh
+
+# Release packages & archives
+*.deb
+*.rpm
+*.apk
+*.pkg.tar.zst
+*.tar.gz
+*.zip
+
+# Debian package build staging
+debian/ez-ssh/
+debian/.debhelper/
+debian/files
+debian/*.debhelper.log
+debian/*.substvars
+
+# Local blueprint notes & OS clutter
+ez-ssh-b.md
+.DS_Store

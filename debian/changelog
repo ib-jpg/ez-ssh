@@ -1,0 +1,7 @@
+ez-ssh (1.0.0-1) unstable; urgency=medium
+
+  * Initial release (v1.0.0).
+  * Local zero-cloud SSH & SFTP Manager TUI with encrypted vault, port
+    forwarding, snippets, known_hosts manager, audit logs, and SFTP.
+
+ -- Ibrahim Irsyad <ibrairsyd0406@gmail.com>  Thu, 26 Nov 2026 15:10:00 +0700

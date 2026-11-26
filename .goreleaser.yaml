@@ -1,0 +1,93 @@
+version: 2
+
+project_name: ez-ssh
+
+before:
+  hooks:
+    - mkdir -p build
+    - sh -c "gzip -9 -n -c docs/ez-ssh.1 > build/ez-ssh.1.gz"
+
+builds:
+  - id: ez-ssh
+    main: ./cmd/ez-ssh
+    binary: ez-ssh
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - "386"
+    ignore:
+      - goos: darwin
+        goarch: "386"
+
+archives:
+  - id: ez-ssh
+    formats:
+      - tar.gz
+    name_template: "ez-ssh_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - docs/ez-ssh.1
+
+checksum:
+  name_template: "checksums.txt"
+
+nfpms:
+  - id: ez-ssh
+    package_name: ez-ssh
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: ib-jpg
+    homepage: https://github.com/ib-jpg/ez-ssh
+    maintainer: Ibrahim Irsyad <ibrairsyd0406@gmail.com>
+    description: |-
+      Local, zero-cloud SSH & SFTP Manager TUI.
+      Manages hosts, encrypted keychain credentials, SSH keypairs,
+      port forwarding tunnels, snippets, known_hosts, logs, and SFTP.
+    license: MIT
+    section: net
+    priority: optional
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+    recommends:
+      - openssh-client
+    contents:
+      - src: ./build/ez-ssh.1.gz
+        dst: /usr/share/man/man1/ez-ssh.1.gz
+      - src: ./LICENSE
+        dst: /usr/share/doc/ez-ssh/copyright
+      - src: ./README.md
+        dst: /usr/share/doc/ez-ssh/README.md
+
+changelog:
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: ib-jpg
+    name: ez-ssh

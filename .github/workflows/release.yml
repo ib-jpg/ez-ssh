@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests before release
+        run: go test ./...
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload .deb packages for APT repo
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-packages
+          path: dist/*.deb
+          if-no-files-found: error
+
+  publish-apt:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check GPG signing secret
+        id: check_gpg
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "${GPG_PRIVATE_KEY:-}" ]; then
+            echo "has_gpg=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::GPG_PRIVATE_KEY secret is not configured; skipping GitHub Pages APT repository update. GitHub Release assets (.deb, .rpm, .apk, Arch, .tar.gz) were still published."
+            echo "has_gpg=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install APT packaging tools
+        if: steps.check_gpg.outputs.has_gpg == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils gnupg
+
+      - name: Download .deb packages
+        if: steps.check_gpg.outputs.has_gpg == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-packages
+          path: /tmp/debs
+
+      - name: Checkout repository for gh-pages
+        if: steps.check_gpg.outputs.has_gpg == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update signed APT repository on gh-pages
+        if: steps.check_gpg.outputs.has_gpg == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+
+          if [ -n "${GPG_PASSPHRASE:-}" ]; then
+            printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --pinentry-mode loopback --passphrase-fd 3 --import 3<<<"$GPG_PASSPHRASE"
+          else
+            printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          fi
+
+          KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          if [ -z "$KEY_ID" ]; then
+            echo "Failed to extract GPG secret key ID" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git checkout -B gh-pages origin/gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          touch .nojekyll
+          cat > index.html << 'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <title>ez-ssh APT Repository</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1rem; line-height: 1.6; }
+              pre { background: #181825; color: #cdd6f4; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+              a { color: #1e66f5; }
+            </style>
+          </head>
+          <body>
+            <h1>ez-ssh Ubuntu / Debian APT Repository</h1>
+            <p>Install and keep <code>ez-ssh</code> up to date via <code>apt</code>:</p>
+            <pre>curl -fsSL https://ib-jpg.github.io/ez-ssh/apt/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ez-ssh-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/ez-ssh-archive-keyring.gpg] https://ib-jpg.github.io/ez-ssh/apt stable main" | sudo tee /etc/apt/sources.list.d/ez-ssh.list
+          sudo apt update &amp;&amp; sudo apt install ez-ssh</pre>
+            <p>Source code &amp; multi-distro packages: <a href="https://github.com/ib-jpg/ez-ssh">github.com/ib-jpg/ez-ssh</a></p>
+          </body>
+          </html>
+          HTML
+
+          mkdir -p apt/pool/main
+          cp -f /tmp/debs/*.deb apt/pool/main/
+
+          pushd apt >/dev/null
+          for arch in amd64 arm64 i386; do
+            mkdir -p "dists/stable/main/binary-${arch}"
+            dpkg-scanpackages --arch "$arch" --multiversion pool/main > "dists/stable/main/binary-${arch}/Packages"
+            gzip -9 -k -f "dists/stable/main/binary-${arch}/Packages"
+          done
+
+          pushd dists/stable >/dev/null
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="ez-ssh" \
+            -o APT::FTPArchive::Release::Label="ez-ssh" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o "APT::FTPArchive::Release::Architectures=amd64 arm64 i386" \
+            -o APT::FTPArchive::Release::Components="main" \
+            release . > Release
+
+          rm -f Release.gpg InRelease
+          if [ -n "${GPG_PASSPHRASE:-}" ]; then
+            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --local-user "$KEY_ID" --detach-sign --armor -o Release.gpg Release 3<<<"$GPG_PASSPHRASE"
+            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --local-user "$KEY_ID" --clearsign -o InRelease Release 3<<<"$GPG_PASSPHRASE"
+          else
+            gpg --batch --yes --local-user "$KEY_ID" --detach-sign --armor -o Release.gpg Release
+            gpg --batch --yes --local-user "$KEY_ID" --clearsign -o InRelease Release
+          fi
+          popd >/dev/null
+
+          gpg --armor --export "$KEY_ID" > gpg.key
+          popd >/dev/null
+
+          git add .nojekyll index.html apt
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "apt: publish release ${GITHUB_REF_NAME:-manual}"
+            git push origin gh-pages
+          else
+            echo "APT repository already up to date."
+          fi
+  

@@ -1,0 +1,70 @@
+.TH EZ-SSH 1 "2026-11-26" "ez-ssh 1.0.0" "User Commands"
+.SH NAME
+ez-ssh \- local, zero-cloud SSH & SFTP manager TUI
+.SH SYNOPSIS
+.B ez-ssh
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B ez-ssh
+is a fast, zero-cloud SSH and SFTP Terminal User Interface (TUI) written in Go.
+It manages SSH hosts, AES-256-GCM encrypted credentials, SSH keypairs,
+local/remote/SOCKS5 port forwarding tunnels, reusable command snippets,
+\fIknown_hosts\fR entries, connection audit logs, dual-pane SFTP transfers, and
+embedded terminal tabs from a single static binary.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show usage information and exit.
+.TP
+.BR \-v ", " \-\-version
+Print the startup banner with the installed version and exit.
+.SH KEYBINDINGS
+.TP
+.B Alt+1 / Alt+2
+Switch to the Vaults or Dual-Pane SFTP workspace.
+.TP
+.B Alt+3 .. Alt+9
+Switch between active embedded SSH session tabs.
+.TP
+.B Alt+Left / Alt+Right
+Cycle across open workspace tabs.
+.TP
+.B Ctrl+W
+Close the active SSH session tab.
+.TP
+.B 1 .. 6 / Tab
+Switch Vault modules (Hosts, Keychain, Port Fwd, Snippets, Known Host, Logs).
+.TP
+.B /
+Fuzzy search within the active view.
+.TP
+.B i
+Toggle the detail inspector panel.
+.TP
+.B q / Ctrl+C
+Quit \fBez-ssh\fR (when outside a connected SSH PTY session).
+.SH FILES
+.TP
+.I ~/.config/ez-ssh/.vault.key
+Master encryption key (mode 0600) used to seal stored passwords and passphrases.
+.TP
+.I ~/.config/ez-ssh/vault.db
+Local SQLite database (mode 0600) storing hosts, keychain items, tunnels, snippets, and audit logs.
+.TP
+.I ~/.config/ez-ssh/logs/
+Optional recorded SSH session transcripts (mode 0700).
+.SH ENVIRONMENT
+.TP
+.B EZ_SSH_CONFIG_DIR
+Overrides the default configuration directory (\fI~/.config/ez-ssh\fR).
+.SH LICENSE
+MIT License. Copyright (c) 2026 ib-jpg.
+.SH SEE ALSO
+.BR ssh (1),
+.BR sftp (1),
+.BR ssh-keygen (1),
+.BR ssh-copy-id (1)
+.PP
+Project homepage and source code:
+.UR https://github.com/ib-jpg/ez-ssh
+.UE

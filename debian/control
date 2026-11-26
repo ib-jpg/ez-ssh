@@ -1,0 +1,23 @@
+Source: ez-ssh
+Section: net
+Priority: optional
+Maintainer: Ibrahim Irsyad <ibrairsyd0406@gmail.com>
+Build-Depends: debhelper-compat (= 13), golang-go
+Standards-Version: 4.7.0
+Homepage: https://github.com/ib-jpg/ez-ssh
+Vcs-Git: https://github.com/ib-jpg/ez-ssh.git
+Vcs-Browser: https://github.com/ib-jpg/ez-ssh
+Rules-Requires-Root: no
+
+Package: ez-ssh
+Architecture: any
+Depends: ${misc:Depends}
+Recommends: openssh-client
+Description: Local, zero-cloud SSH and SFTP Manager TUI
+ ez-ssh is a fast, local-first SSH and SFTP Terminal User Interface (TUI)
+ written in Go with Bubble Tea, Lip Gloss, and pure-Go SQLite.
+ .
+ It provides a hosts grid with ~/.ssh/config import, AES-256-GCM encrypted
+ keychain credentials, Ed25519/RSA-4096 SSH key generation, local/remote/SOCKS5
+ port forwarding tunnels, multi-line command snippets, known_hosts management,
+ connection audit logs, dual-pane SFTP transfers, and embedded SSH tabs.

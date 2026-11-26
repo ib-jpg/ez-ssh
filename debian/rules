@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+
+export CGO_ENABLED=0
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	MOD_FLAG=""; if [ -d vendor ]; then MOD_FLAG="-mod=vendor"; fi; \
+	GOCACHE="$(CURDIR)/.gocache" go build $$MOD_FLAG -trimpath \
+		-ldflags="-s -w -X main.version=$(DEB_VERSION_UPSTREAM)" \
+		-o ez-ssh ./cmd/ez-ssh
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	MOD_FLAG=""; if [ -d vendor ]; then MOD_FLAG="-mod=vendor"; fi; \
+	GOCACHE="$(CURDIR)/.gocache" go test $$MOD_FLAG ./...
+endif
+
+override_dh_auto_install:
+	install -D -m 0755 ez-ssh debian/ez-ssh/usr/bin/ez-ssh
+
+override_dh_auto_clean:
+	rm -rf ez-ssh .gocache
